@@ -1,0 +1,160 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Table and column names match the old Supabase tables, so a Supabase data dump
+// imports as-is and the API returns the same JSON shape the frontends already use.
+
+model Job {
+  id                  String        @id
+  title               String
+  location            String
+  type                String
+  experience          String
+  department          String
+  posted_date         String        @default("Recent")
+  overview            String
+  responsibilities    String[]      @default([])
+  requirements        String[]      @default([])
+  preferred_skills    String[]      @default([])
+  benefits            String[]      @default([])
+  title_de            String?
+  department_de       String?
+  overview_de         String?
+  responsibilities_de String[]      @default([])
+  requirements_de     String[]      @default([])
+  preferred_skills_de String[]      @default([])
+  benefits_de         String[]      @default([])
+  is_active           Boolean       @default(true)
+  created_at          DateTime      @default(now()) @db.Timestamptz
+  updated_at          DateTime      @default(now()) @updatedAt @db.Timestamptz
+  applications        Application[]
+
+  @@map("jobs")
+}
+
+model Application {
+  id                  String   @id @default(uuid()) @db.Uuid
+  job_id              String
+  // Restrict: deleting a job must not silently delete its applicants and CVs.
+  job                 Job      @relation(fields: [job_id], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  full_name           String
+  email               String
+  phone               String
+  current_location    String
+  years_of_experience String
+  primary_skill       String
+  linkedin_url        String?
+  cover_letter        String?
+  resume_file_url     String? // path inside STORAGE_DIR/resumes
+  resume_file_name    String?
+  status              String   @default("new") // new | reviewed | shortlisted | rejected
+  created_at          DateTime @default(now()) @db.Timestamptz
+
+  @@index([job_id])
+  @@map("applications")
+}
+
+model Enquiry {
+  id                  String   @id @default(uuid()) @db.Uuid
+  name                String
+  email               String
+  phone               String
+  company             String?
+  service_requirement String
+  message             String
+  status              String   @default("new") // new | read | responded
+  created_at          DateTime @default(now()) @db.Timestamptz
+
+  @@map("enquiries")
+}
+
+// Keys: `text.<path>` -> { en, de }, `image.<name>` -> { url }, `company` -> contact details
+model SiteContent {
+  key        String   @id
+  value      Json
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("site_content")
+}
+
+model SiteLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  group_name String // navbar | footer
+  label_en   String
+  label_de   String?
+  url        String
+  sort_order Int      @default(0)
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@index([group_name, sort_order])
+  @@map("site_links")
+}
+
+model BlogPost {
+  id              String    @id @default(uuid()) @db.Uuid
+  slug            String    @unique
+  title_en        String
+  title_de        String?
+  category_en     String?
+  category_de     String?
+  excerpt_en      String?
+  excerpt_de      String?
+  content_en      String?
+  content_de      String?
+  image_url       String?
+  seo_title       String?
+  seo_description String?
+  is_published    Boolean   @default(false)
+  published_at    DateTime? @db.Timestamptz
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("blog_posts")
+}
+
+// Home page "Market Focus" slider. German fields are optional; the website falls back to English.
+model HomeSlide {
+  id             String   @id @default(uuid()) @db.Uuid
+  sort_order     Int      @default(0)
+  is_active      Boolean  @default(true)
+  is_featured    Boolean  @default(false) // shows a ★ on the tab
+  icon           String   @default("sparkles") // see SLIDE_ICONS in the API and website
+  tab_label_en   String
+  tab_label_de   String?
+  badge_en       String
+  badge_de       String?
+  title_en       String
+  title_de       String?
+  subtitle_en    String
+  subtitle_de    String?
+  audience_en    String?
+  audience_de    String?
+  tags_en        String[] @default([])
+  tags_de        String[] @default([])
+  button_text_en String?
+  button_text_de String?
+  button_link    String?
+  image_url      String?
+  created_at     DateTime @default(now()) @db.Timestamptz
+  updated_at     DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([sort_order])
+  @@map("home_slides")
+}
+
+model Admin {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  password_hash String
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  @@map("admins")
+}
