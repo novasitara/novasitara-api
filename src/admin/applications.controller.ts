@@ -18,7 +18,7 @@ export class ApplicationsController {
 
   @Get()
   list() {
-    return this.prisma.application.findMany({ orderBy: { created_at: 'desc' } });
+    return this.prisma.application.findMany({ include: { job: { select: { title: true } } }, orderBy: { created_at: 'desc' } });
   }
 
   @Patch(':id')
