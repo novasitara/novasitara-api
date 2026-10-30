@@ -80,76 +80,90 @@ Files are not part of that dump:
 
 ## Deploying to the Hostinger VPS (Ubuntu)
 
-One-time server setup:
+The VPS runs only the backend: the API (systemd service), PostgreSQL and the storage folders, behind Nginx. The website and admin panel are hosted on Vercel.
 
-```bash
-sudo apt update && sudo apt install -y nginx postgresql certbot python3-certbot-nginx
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
-sudo npm install -g pm2
-
-sudo -u postgres psql -c "CREATE USER novasitara WITH PASSWORD 'strong-password';"
-sudo -u postgres psql -c "CREATE DATABASE novasitara OWNER novasitara;"
+```
+Vercel (website, admin)  ──HTTPS──►  Nginx :80/:443  ──►  API 127.0.0.1:3000  ──►  PostgreSQL (localhost only)
+                                                             └──►  /var/lib/novasitara/storage (images, CVs)
 ```
 
-API (`/var/www/novasitara-api`, `.env` with `NODE_ENV=production`, `DATABASE_URL=postgresql://novasitara:...@localhost:5432/novasitara`, `STORAGE_DIR=/var/www/novasitara-storage`, SMTP settings):
+Only SSH, 80 and 443 are open. PostgreSQL and the API are not reachable from the internet.
+
+**1. Key login (once).** Create a key and install it on the server; you type the server password yourself, once:
 
 ```bash
-npm ci && npm run build && npm run db:deploy
-pm2 start dist/main.js --name novasitara-api && pm2 save && pm2 startup
+ssh-keygen -t ed25519 -f ~/.ssh/novasitara_vps -N ""
+ssh-copy-id -p 7576 -i ~/.ssh/novasitara_vps.pub root@SERVER_IP
 ```
 
-Frontends: run `npm ci && npm run build` in each, then copy `dist/` to `/var/www/novasitara` and `/var/www/novasitara-admin`.
+On Windows without `ssh-copy-id`: `type %USERPROFILE%\.ssh\novasitara_vps.pub | ssh -p 7576 root@SERVER_IP "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"`.
 
-Nginx (`/etc/nginx/sites-available/novasitara`, then `ln -s` it into `sites-enabled`):
+**2. Set up the server (once).** Installs Node 22, PostgreSQL, Nginx, firewall, fail2ban, the systemd service and daily backups, and creates the database and `/var/www/novasitara-api/.env` with generated passwords (they stay on the server):
 
-```nginx
-server {
-  server_name novasitara.com www.novasitara.com;
-  root /var/www/novasitara;
-  client_max_body_size 6m;
-  location /api/    { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }
-  location /uploads/ { alias /var/www/novasitara-storage/public/; expires 30d; add_header Content-Security-Policy "script-src 'none'"; }
-  location / { try_files $uri /index.html; }
+```bash
+scp -P 7576 -i ~/.ssh/novasitara_vps deploy/setup-server.sh root@SERVER_IP:/tmp/
+ssh -p 7576 -i ~/.ssh/novasitara_vps root@SERVER_IP bash /tmp/setup-server.sh
+```
+
+**3. Deploy (every release).** Uploads the last commit, installs, builds, runs migrations and restarts:
+
+```bash
+SERVER=root@SERVER_IP SSH_PORT=7576 SSH_KEY=~/.ssh/novasitara_vps bash deploy/deploy.sh
+```
+
+**4. Create the admin** (on the server, so the password never goes through chat or history):
+
+```bash
+ssh -p 7576 -i ~/.ssh/novasitara_vps root@SERVER_IP
+cd /var/www/novasitara-api
+read -rsp "Admin password: " ADMIN_PASSWORD; export ADMIN_PASSWORD
+sudo -E -H -u novasitara npm run create-admin -- you@novasitara.com
+```
+
+**5. Email.** Edit `/var/www/novasitara-api/.env` (SMTP_* and `MAIL_TO`, the company inbox), then `systemctl restart novasitara-api`.
+
+Useful: `systemctl status novasitara-api`, `journalctl -u novasitara-api -f`, `nginx -t`.
+
+### Domain and SSL
+
+Point a DNS A record (for example `api.novasitara.com`) at the server IP. Then on the server:
+
+```bash
+sed -i 's/server_name _;.*/server_name api.novasitara.com;/' /etc/nginx/sites-available/novasitara-api
+nginx -t && systemctl reload nginx
+certbot --nginx -d api.novasitara.com     # free SSL certificate, renews automatically
+```
+
+Until the domain has SSL the admin cannot sign in: its session cookie is `Secure` and browsers drop it over plain HTTP. Public endpoints work over HTTP for testing with `curl http://SERVER_IP/api/jobs`.
+
+### Frontends on Vercel
+
+Both apps call `/api/...` and show images from `/uploads/...` on their own address. Add this to each frontend's `vercel.json` (replace the domain) so Vercel forwards those paths to the API; the browser then only talks to Vercel, so there is no CORS setup and the login cookie is first-party:
+
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.novasitara.com/api/:path*" },
+    { "source": "/uploads/:path*", "destination": "https://api.novasitara.com/uploads/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
-
-server {
-  server_name admin.novasitara.com;
-  root /var/www/novasitara-admin;
-  client_max_body_size 6m;
-  location /api/    { proxy_pass http://127.0.0.1:3000; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }
-  location /uploads/ { alias /var/www/novasitara-storage/public/; expires 30d; add_header Content-Security-Policy "script-src 'none'"; }
-  location / { try_files $uri /index.html; }
-}
 ```
 
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d novasitara.com -d www.novasitara.com -d admin.novasitara.com   # free SSL, auto-renews
-```
-
-Point the DNS A records for `novasitara.com`, `www` and `admin` at the VPS IP before running certbot.
-
-Updating later: `git pull && npm ci && npm run build && npm run db:deploy && pm2 restart novasitara-api`.
+No Vercel environment variables are needed. Set `ADMIN_URL` in the server's `.env` to the admin panel's address so notification emails link to it.
 
 ## Backups
 
-Daily database dump and file archive, 14 days kept (`/etc/cron.d/novasitara-backup`):
+`setup-server.sh` installs a daily job (02:30) that writes `db-YYYY-MM-DD.dump` and `files-YYYY-MM-DD.tar.gz` to `/var/backups/novasitara` and keeps 14 days. A backup on the same server is lost with the server, so also turn on Hostinger's VPS snapshots and copy that folder off the server regularly (for example `rclone` to Google Drive).
 
-```cron
-30 2 * * * postgres pg_dump -Fc novasitara > /var/backups/novasitara/db-$(date +\%F).dump
-45 2 * * * root tar -czf /var/backups/novasitara/files-$(date +\%F).tar.gz -C /var/www novasitara-storage
-0 4 * * * root find /var/backups/novasitara -type f -mtime +14 -delete
-```
-
-(`sudo mkdir -p /var/backups/novasitara && sudo chown postgres /var/backups/novasitara`)
-
-A backup on the same server is lost with the server. Also turn on Hostinger's VPS snapshots, and copy `/var/backups/novasitara` off the server (for example `rclone sync` to Google Drive) every day.
+Run one now: `/usr/local/bin/novasitara-backup`.
 
 **Restore:**
 
 ```bash
-pm2 stop novasitara-api
-sudo -u postgres pg_restore --clean --if-exists -d novasitara /var/backups/novasitara/db-YYYY-MM-DD.dump
-sudo tar -xzf /var/backups/novasitara/files-YYYY-MM-DD.tar.gz -C /var/www
-pm2 start novasitara-api
+systemctl stop novasitara-api
+runuser -u postgres -- pg_restore --clean --if-exists -d novasitara /var/backups/novasitara/db-YYYY-MM-DD.dump
+tar -xzf /var/backups/novasitara/files-YYYY-MM-DD.tar.gz -C /var/lib/novasitara
+chown -R novasitara:novasitara /var/lib/novasitara
+systemctl start novasitara-api
 ```
