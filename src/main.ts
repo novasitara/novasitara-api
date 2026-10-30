@@ -21,6 +21,7 @@ async function bootstrap() {
     setHeaders: (res) => res.setHeader('Content-Security-Policy', "script-src 'none'"),
   });
   app.enableShutdownHooks();
-  await app.listen(process.env.PORT ?? 3000);
+  // HOST=127.0.0.1 on the server: only Nginx on the same machine may reach the API.
+  await app.listen(process.env.PORT ?? 3000, process.env.HOST ?? '0.0.0.0');
 }
 bootstrap();
