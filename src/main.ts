@@ -10,6 +10,7 @@ import { PUBLIC_DIR } from './uploads';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.set('trust proxy', 1); // behind Nginx: rate limits use the real client IP
+  app.disable('x-powered-by');
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

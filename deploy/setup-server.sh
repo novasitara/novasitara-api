@@ -79,6 +79,8 @@ Restart=always
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
+# New files (CVs, uploads) are readable only by the service user
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target
