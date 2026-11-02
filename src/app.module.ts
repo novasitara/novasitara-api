@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApplicationsController } from './admin/applications.controller';
+import { BackupsController } from './admin/backups.controller';
 import { BlogsController } from './admin/blogs.controller';
 import { ContentController } from './admin/content.controller';
 import { DashboardController } from './admin/dashboard.controller';
@@ -29,6 +30,7 @@ import { PublicController } from './public/public.controller';
     BlogsController,
     ContentController,
     SlidesController,
+    BackupsController,
   ],
   providers: [PrismaService, MailService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

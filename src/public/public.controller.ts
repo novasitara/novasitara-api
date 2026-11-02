@@ -8,15 +8,18 @@ import { MailService } from '../mail.service';
 import { PrismaService } from '../prisma.service';
 import { RESUME_DIR, saveResume, uploadLimits } from '../uploads';
 
-const trim = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() : value));
-const emptyToUndefined = () => Transform(({ value }) => (typeof value === 'string' && value.trim() ? value.trim() : undefined));
+// Visitor text is plain text: tags are removed so stored values and notification emails stay clean.
+const stripTags = (value: unknown) => (typeof value === 'string' ? value.replace(/<[^>]*>/g, '').trim() : value);
+const trim = () => Transform(({ value }) => stripTags(value));
+const emptyToUndefined = () => Transform(({ value }) => stripTags(value) || undefined);
+const phoneChars = () => Transform(({ value }) => (typeof value === 'string' ? value.replace(/[^0-9+\-\s()]/g, '').trim() : value));
 // Public forms: at most 5 submissions per IP per 10 minutes.
 const formLimit = () => Throttle({ default: { limit: 5, ttl: 10 * 60_000 } });
 
 class EnquiryDto {
   @trim() @IsString() @MinLength(1) @MaxLength(100) name: string;
   @trim() @IsEmail() @MaxLength(200) email: string;
-  @trim() @IsString() @MaxLength(30) phone: string;
+  @phoneChars() @IsString() @MaxLength(30) phone: string;
   @emptyToUndefined() @IsOptional() @IsString() @MaxLength(100) company?: string;
   @trim() @IsString() @MaxLength(100) service_requirement: string;
   @trim() @IsString() @MinLength(1) @MaxLength(5000) message: string;
@@ -26,7 +29,7 @@ class ApplicationDto {
   @Matches(/^[a-z0-9-]+$/) @MaxLength(100) job_id: string;
   @trim() @IsString() @MinLength(1) @MaxLength(100) full_name: string;
   @trim() @IsEmail() @MaxLength(200) email: string;
-  @trim() @IsString() @MinLength(1) @MaxLength(30) phone: string;
+  @phoneChars() @IsString() @MinLength(1) @MaxLength(30) phone: string;
   @trim() @IsString() @MaxLength(100) current_location: string;
   @trim() @IsString() @MaxLength(30) years_of_experience: string;
   @trim() @IsString() @MaxLength(200) primary_skill: string;

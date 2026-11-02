@@ -10,6 +10,7 @@ import { PUBLIC_DIR } from './uploads';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.set('trust proxy', 1); // behind Nginx: rate limits use the real client IP
+  app.disable('x-powered-by');
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
@@ -21,6 +22,7 @@ async function bootstrap() {
     setHeaders: (res) => res.setHeader('Content-Security-Policy', "script-src 'none'"),
   });
   app.enableShutdownHooks();
-  await app.listen(process.env.PORT ?? 3000);
+  // HOST=127.0.0.1 on the server: only Nginx on the same machine may reach the API.
+  await app.listen(process.env.PORT ?? 3000, process.env.HOST ?? '0.0.0.0');
 }
 bootstrap();
