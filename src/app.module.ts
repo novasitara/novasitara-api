@@ -11,6 +11,7 @@ import { JobsController } from './admin/jobs.controller';
 import { SlidesController } from './admin/slides.controller';
 import { AuthController } from './auth/auth.controller';
 import { MailService } from './mail.service';
+import { PortalController } from './portal/portal.controller';
 import { PrismaService } from './prisma.service';
 import { PublicController } from './public/public.controller';
 
@@ -22,6 +23,7 @@ import { PublicController } from './public/public.controller';
   controllers: [
     PublicController,
     AuthController,
+    PortalController,
     DashboardController,
     JobsController,
     ApplicationsController,

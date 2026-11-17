@@ -131,6 +131,17 @@ Point the DNS A records for `novasitara.com`, `www` and `admin` at the VPS IP be
 
 Updating later: `git pull && npm ci && npm run build && npm run db:deploy && pm2 restart novasitara-api`.
 
+## Company employee portal rollout
+
+The portal uses separate company identities and revocable database-backed sessions. It does not use website-admin credentials, ChatGPT sign-in, or any ChatGPT storage. It does not yet host payroll, expenses or documents.
+
+1. On the authorized Hostinger VPS, back up PostgreSQL and verify the backup. Confirm the existing SMTP service is configured to send Nova Sitara mail.
+2. Install/build the portal API release, apply migrations with `npm run db:deploy`, and restart PM2. Run build and migration as the normal deployment user with the existing production environment. Check the existing public and admin endpoints to confirm they still work.
+3. Use `npm run create-portal-owner -- <confirmed-owner-email> "Owner Name"` on the VPS to provision the verified owner. Do not use a shared inbox or the old website-admin password for this role. The account is activated by a one-time emailed link, not a centrally distributed password.
+4. Check the Vercel rewrite from `www.novasitara.com/api/portal/*` to the production API. An anonymous request to `/api/portal/me` must return 401 with a no-store cache policy. Coordinate the website rollout when the API is ready; the Vercel preview domain is deliberately not a production sign-in origin.
+5. After the company portal routes are deployed, test owner sign-in and add a pilot employee using a verified email; adding an account does not send email automatically. The employee opens the website's Employee Login, requests a link, and sees only their own account. Verify link replay fails, employee access to the members API returns 403, and disabling a test account revokes its sessions.
+6. Treat migration of old workspace data as a separate cutover. Inventory and validate the workspace export and private files without putting them in Git or a public uploads directory. Do not upload real employee documents until storage, record-level access tests and restore procedures are ready.
+
 ## Backups
 
 Daily database dump and file archive, 14 days kept (`/etc/cron.d/novasitara-backup`):

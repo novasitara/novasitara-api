@@ -158,3 +158,32 @@ model Admin {
 
   @@map("admins")
 }
+
+enum PortalRole {
+  owner
+  employee
+}
+
+model PortalMember {
+  id              String          @id @default(uuid()) @db.Uuid
+  email           String          @unique
+  name            String
+  role            PortalRole      @default(employee)
+  active          Boolean         @default(true)
+  link_hash       String?         @unique
+  link_expires_at DateTime?       @db.Timestamptz
+  last_link_at    DateTime?       @db.Timestamptz
+  sessions        PortalSession[]
+
+  @@map("portal_members")
+}
+
+model PortalSession {
+  token_hash String       @id
+  member_id  String       @db.Uuid
+  expires_at DateTime     @db.Timestamptz
+  member     PortalMember @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@index([member_id, expires_at])
+  @@map("portal_sessions")
+}
