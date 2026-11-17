@@ -17,6 +17,20 @@ export class MailService {
       })
     : null;
 
+  canSendPortalMail() {
+    return Boolean(this.transport && (process.env.SMTP_FROM || process.env.SMTP_USER));
+  }
+
+  async sendPortalLink(to: string, url: string) {
+    if (!this.transport || !this.canSendPortalMail()) throw new Error('Portal mail is not configured.');
+    await this.transport.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to,
+      subject: 'Sign in to the Nova Sitara Employee Portal',
+      text: `Open this single-use link to sign in. It expires in 15 minutes.\n\n${url}\n\nIf you did not request it, ignore this message. Do not forward your sign-in link.`,
+    });
+  }
+
   async notify(subject: string, fields: Record<string, string | null | undefined>, replyTo?: string, attachments: Attachment[] = []) {
     if (!this.transport || !process.env.MAIL_TO) {
       this.log.warn(`SMTP_HOST or MAIL_TO not set, skipped email: ${subject}`);

@@ -2,6 +2,7 @@ import './env';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { NextFunction, Request, Response } from 'express';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { PrismaErrorFilter } from './prisma-errors.filter';
@@ -12,6 +13,10 @@ async function bootstrap() {
   app.set('trust proxy', 1); // behind Nginx: rate limits use the real client IP
   app.setGlobalPrefix('api');
   app.use(cookieParser());
+  app.use('/api/portal', (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new PrismaErrorFilter(app.getHttpAdapter()));
   // Admin-uploaded images. No scripts may run from here (SVG uploads are allowed).

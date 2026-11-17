@@ -10,7 +10,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "create-admin": "tsx scripts/create-admin.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "create-portal-owner": "node --import tsx scripts/create-portal-owner.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "license": "UNLICENSED",
   "type": "commonjs",
